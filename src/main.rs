@@ -6,8 +6,9 @@ use std::{
 };
 
 use crossterm::{
-    event::{self, Event as CEvent, KeyCode, KeyEvent},
-    terminal::{disable_raw_mode, enable_raw_mode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode, KeyEvent},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use tui::{
     backend::CrosstermBackend,
@@ -34,7 +35,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     start_polling_thread(tx);
 
-    let stdout = io::stdout();
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     terminal.clear()?;
@@ -49,6 +51,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match input_result {
             InputEventResult::Quit => {
                 disable_raw_mode()?;
+                execute!(
+                    terminal.backend_mut(),
+                    LeaveAlternateScreen,
+                    DisableMouseCapture
+                )?;
                 terminal.show_cursor()?;
                 break;
             }
