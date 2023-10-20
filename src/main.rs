@@ -1,6 +1,6 @@
 use std::{
-    io,
-    sync::mpsc::{self, Sender},
+    io::{self, Stdout},
+    sync::mpsc::{self, Receiver, Sender},
     thread,
     time::{Duration, Instant},
 };
@@ -22,6 +22,11 @@ enum Event<I> {
     Tick,
 }
 
+enum InputEventResult {
+    Continue,
+    Quit,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     enable_raw_mode().expect("cannot run in raw mode");
 
@@ -38,40 +43,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     metadata_list_state.select(Some(0));
 
     loop {
-        terminal.draw(|rect| {
-            let size = rect.size();
-            let chunks = Layout::default()
-                .direction(tui::layout::Direction::Vertical)
-                .margin(2)
-                .constraints([Constraint::Min(2)].as_ref())
-                .split(size);
+        render_ui(&mut terminal)?;
 
-            let hello_world = Paragraph::new("Hello World!")
-                .style(Style::default().fg(Color::LightCyan))
-                .alignment(Alignment::Center)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .style(Style::default().fg(Color::White))
-                        .title("SFUI")
-                        .border_type(BorderType::Rounded),
-                );
-            rect.render_widget(hello_world, chunks[0]);
-        })?;
-
-        match rx.recv()? {
-            Event::Input(event) => match event.code {
-                KeyCode::Char('q') => {
-                    disable_raw_mode()?;
-                    terminal.show_cursor()?;
-                    break;
-                }
-                _ => {}
-            },
-            Event::Tick => {}
+        let input_result = handle_input(&rx)?;
+        match input_result {
+            InputEventResult::Quit => {
+                disable_raw_mode()?;
+                terminal.show_cursor()?;
+                break;
+            }
+            InputEventResult::Continue => {}
         }
     }
 
+    Ok(())
+}
+
+fn handle_input(
+    rx: &Receiver<Event<KeyEvent>>,
+) -> Result<InputEventResult, Box<dyn std::error::Error>> {
+    match rx.recv()? {
+        Event::Input(event) => match event.code {
+            KeyCode::Char('q') => Ok(InputEventResult::Quit),
+            _ => Ok(InputEventResult::Continue),
+        },
+        Event::Tick => Ok(InputEventResult::Continue),
+    }
+}
+
+fn render_ui(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    terminal.draw(|rect| {
+        let size = rect.size();
+        let chunks = Layout::default()
+            .direction(tui::layout::Direction::Vertical)
+            .margin(2)
+            .constraints([Constraint::Min(2)].as_ref())
+            .split(size);
+
+        let hello_world = Paragraph::new("Hello World!")
+            .style(Style::default().fg(Color::LightCyan))
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .style(Style::default().fg(Color::White))
+                    .title("SFUI")
+                    .border_type(BorderType::Rounded),
+            );
+        rect.render_widget(hello_world, chunks[0]);
+    })?;
     Ok(())
 }
 
